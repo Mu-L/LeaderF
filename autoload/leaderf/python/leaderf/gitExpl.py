@@ -291,6 +291,9 @@ class GitDiffCommand(GitCommand):
         if "--cached" in self._arguments:
             extra_options += " --cached"
 
+        if len(self._source) == 6 and self._source[5] == "Staged Changes":
+            extra_options += " --cached"
+
         if "extra" in self._arguments:
             extra_options += " " + " ".join(self._arguments["extra"])
 
@@ -3576,8 +3579,14 @@ class NavigationPanel(Panel):
         if tree_view is not None:
             tree_view.collapseChildren()
 
-    def locateFile(self, path, line_num=None, preview=True):
-        self.getTreeView().locateFile(path)
+    def locateFile(self, path, line_num=None, preview=True, title=""):
+        tree_view = self.getTreeView()
+        for view in self._tree_views:
+            if view.getTitle().startswith(title):
+                tree_view = view
+                break
+
+        tree_view.locateFile(path)
         self.openDiffView(False, line_num=line_num, preview=preview)
 
     @ensureWorkingDirectory
@@ -3589,13 +3598,20 @@ class NavigationPanel(Panel):
         if tree_view is None:
             return
 
+        if len(self._tree_views) == 1:
+            file_list = self._tree_views[0].getFileList()
+        else:
+            file_list = []
+            for view in self._tree_views:
+                file_list.extend(("{}\t[{}]".format(file, view.getTitle().rstrip(':'))
+                                  for file in view.getFileList()))
+
         kwargs = {}
         kwargs["arguments"] = {
                 "owner": self._owner._owner,
                 "commit_id": self._commit_id,
-                "command": tree_view.getCommand(),
                 "parent": tree_view.getCurrentParent(),
-                "content": tree_view.getFileList(),
+                "content": file_list,
                 "accept": self.locateFile
                 }
 
@@ -4366,6 +4382,7 @@ class GitDiffExplManager(GitExplManager):
         return self._explorer
 
     def _getDigest(self, line, mode):
+        line = line.split("\t[")[0]
         if mode == 0:
             return line[5:]
         elif mode == 1:
@@ -4377,6 +4394,7 @@ class GitDiffExplManager(GitExplManager):
         if mode == 0 or mode == 2:
             return 5
         else:
+            line = line.split("\t[")[0]
             return lfBytesLen(getDirname(line))
 
     def afterBufhidden(self):
@@ -4390,22 +4408,34 @@ class GitDiffExplManager(GitExplManager):
         if line == '':
             return None
 
+        def getFileName(string):
+            return string.split(None, 2 if self._show_icon else 1)[-1]
+
+        parts = line.split("\t[")
+        line = parts[0]
         if line.startswith("?"):
-            return ("uuu", "xxx", "?", line.split()[-1], "")
+            if len(parts) == 2:
+                return ("uuu", "xxx", "?", getFileName(line), "", parts[1].rstrip("]"))
+            else:
+                return ("uuu", "xxx", "?", getFileName(line), "")
 
         file_name2 = ""
         if "\t=>\t" in line:
             # 'R050 hello world.txt\t=>\thello world2.txt'
             # 'R050   hello world.txt\t=>\thello world2.txt'
             tmp = line.split("\t=>\t")
-            file_name1 = tmp[0].split(None, 2 if self._show_icon else 1)[-1]
+            file_name1 = getFileName(tmp[0])
             file_name2 = tmp[1]
         else:
             # 'M      runtime/syntax/nix.vim'
-            file_name1 = line.split()[-1]
+            file_name1 = getFileName(line)
 
-        return self._getExplorer().getSourceInfo().get((file_name1, file_name2),
-                                                       ("", "", "", file_name1, file_name2))
+        source = self._getExplorer().getSourceInfo().get((file_name1, file_name2),
+                                                         ("", "", "", file_name1, file_name2))
+        if len(parts) == 2:
+            return (*source, parts[1].rstrip("]"))
+        else:
+            return source
 
     def _createPreviewWindow(self, config, source, line_num, jump_cmd):
         # source is ('uuu', 'xxx', '?', 'aaa.c', '')
@@ -4569,12 +4599,17 @@ class GitDiffExplManager(GitExplManager):
             lfCmd(r"""call win_execute(%d, 'let matchid = matchadd(''Lf_hl_gitDiffDeletion'', ''^[DU]'')')"""
                     % self._getInstance().getPopupWinId())
             id = int(lfEval("matchid"))
+            lfCmd(r"""call win_execute(%d, 'let matchid = matchadd(''Comment'', ''\t\zs\[.*]'')')"""
+                    % self._getInstance().getPopupWinId())
+            id = int(lfEval("matchid"))
         else:
             id = int(lfEval(r'''matchadd('Lf_hl_gitDiffModification', '^[MRT]\S*')'''))
             self._match_ids.append(id)
             id = int(lfEval(r'''matchadd('Lf_hl_gitDiffAddition', '^[AC]\S*')'''))
             self._match_ids.append(id)
             id = int(lfEval(r'''matchadd('Lf_hl_gitDiffDeletion', '^[DU]')'''))
+            self._match_ids.append(id)
+            id = int(lfEval(r'''matchadd('Comment', '\t\zs\[.*]')'''))
             self._match_ids.append(id)
 
     def _accept(self, file, mode, *args, **kwargs):
@@ -4592,7 +4627,8 @@ class GitDiffExplManager(GitExplManager):
         source = self.getSource(line)
 
         if "accept" in self._arguments:
-            self._arguments["accept"](lfGetFilePath(source))
+            title = "" if len(source) == 5 else source[5]
+            self._arguments["accept"](lfGetFilePath(source), title=title)
         elif "-s" in self._arguments:
             kwargs["project_root"] = self._project_root
             self._diff_view_panel.create(self._arguments, source, **kwargs)
@@ -5663,8 +5699,6 @@ class GitStatusExplManager(GitExplManager):
 
     def getPreviewCommand(self, arguments_dict, source):
         arguments_dict.update(self._arguments)
-        if isinstance(arguments_dict["command"], GitStagedCommand):
-            arguments_dict["--cached"] = []
         return GitDiffCommand(arguments_dict, source)
 
     def cleanupExplorerPage(self, page):
