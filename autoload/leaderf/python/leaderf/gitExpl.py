@@ -53,6 +53,12 @@ def lfGetFilePath(source):
     """
     return source[3] if source[4] == "" else source[4]
 
+def lfGetOrigFilePath(source):
+    """
+    source is a tuple like (b90f76fc1, bad07e644, R099, src/version.c, src/version2.c)
+    """
+    return "" if source[4] == "" else source[3]
+
 def lfConfirm(what):
     try:
         selection = int(lfEval("""confirm("{}", "&Yes\n&No")""".format(what)))
@@ -2849,6 +2855,10 @@ class UnifiedDiffViewPanel(Panel):
                     lfCmd("setlocal syntax=ON")
                 abs_file_path = os.path.join(self._project_root, lfGetFilePath(source))
                 lfCmd("let b:lf_git_file_name = '%s'" % escQuote(abs_file_path))
+                abs_orig_file_path = lfGetOrigFilePath(source)
+                if abs_orig_file_path != "":
+                    abs_orig_file_path = os.path.join(self._project_root, lfGetOrigFilePath(source))
+                lfCmd("let b:lf_git_orig_file_name = '%s'" % escQuote(abs_orig_file_path))
                 lfCmd("let b:lf_git_line_num_content = {}".format(str(line_num_content)))
                 lfCmd("augroup Lf_Git_Log | augroup END")
                 lfCmd("autocmd! Lf_Git_Log BufWinEnter <buffer> call leaderf#Git#SetMatches()")
@@ -2960,6 +2970,7 @@ class UnifiedDiffViewPanel(Panel):
                 navigation_panel.stageUnstage(focus=False)
         else:
             file_name = lfEval("b:lf_git_file_name")
+            orig_file_name = lfEval("b:lf_git_orig_file_name")
             buffer_name_parts = vim.current.buffer.name.split(":")
             right_commit = buffer_name_parts[2]
             if right_commit == "xxx":
@@ -2985,8 +2996,9 @@ class UnifiedDiffViewPanel(Panel):
                     return
 
                 title = "Staged Changes:"
-                git_cmd = "git diff --cached --diff-algorithm={} -U5 -- {}".format(navigation_panel._diff_algorithm,
-                                                                                   file_name)
+                git_cmd = "git diff --cached --diff-algorithm={} -U5 -- {} {}".format(navigation_panel._diff_algorithm,
+                                                                                      orig_file_name,
+                                                                                      file_name)
                 git_apply_cmd = "git apply -R --cached --whitespace=nowarn"
 
                 buffer_name_parts[2] = "0000000"    # 7 zeros
@@ -3018,7 +3030,10 @@ class UnifiedDiffViewPanel(Panel):
                 lfPrintError("git apply failed! " + lfBytes2Str(output.stderr.strip()))
                 return
 
-            target_path = os.path.relpath(file_name, self._project_root)
+            if orig_file_name != "":
+                target_path = os.path.relpath(orig_file_name, self._project_root)
+            else:
+                target_path = os.path.relpath(file_name, self._project_root)
             lfCmd("noautocmd LeaderfGitNavigationOpen")
             navigation_panel.updateTreeview(title, target_path, focus=False, sync=True)
 
@@ -3652,6 +3667,8 @@ class NavigationPanel(Panel):
         if tree_view.getTitle() == "Staged Changes:":
             if change_type == "A":
                 title =  "Untracked files:"
+            elif change_type.startswith("R"):
+                title = "Staged Changes:"
             else:
                 title = "Unstaged Changes:"
 
