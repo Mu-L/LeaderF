@@ -2612,6 +2612,7 @@ class UnifiedDiffViewPanel(Panel):
         lfCmd("setlocal nonumber")
         lfCmd("setlocal conceallevel=0")
         lfCmd("setlocal nowrap")
+        lfCmd("setlocal foldenable")
         lfCmd("setlocal foldmethod=expr")
         lfCmd("setlocal foldexpr=leaderf#Git#FoldExpr()")
         lfCmd("setlocal foldlevel=0")
