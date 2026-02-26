@@ -2143,6 +2143,13 @@ class PreviewPanel(Panel):
         if self._view:
             self._view.setContent(content)
 
+    def getFileType(self):
+        return lfEval("getbufvar(winbufnr(%d), '&ft')" % self._preview_winid)
+
+    def setFileType(self, filetype):
+        lfCmd("silent! call win_execute({}, 'setlocal ft={}')".format(self._preview_winid,
+                                                                      filetype))
+
     def getViewContent(self):
         if self._view:
             return self._view.getContent()
@@ -4440,10 +4447,9 @@ class GitDiffExplManager(GitExplManager):
     def _createPreviewWindow(self, config, source, line_num, jump_cmd):
         # source is ('uuu', 'xxx', '?', 'aaa.c', '')
         if len(source) > 0 and source[1] == "xxx":
-            return super(GitExplManager, self)._createPreviewWindow(config,
-                                                                    source[3],
-                                                                    line_num,
-                                                                    jump_cmd)
+            return self._preview_panel.createView(GitCatFileCommand({},
+                                                                    source[1:4],
+                                                                    "000000000"))
 
         self._preview_panel.create(self.createGitCommand(self._arguments, source),
                                    config,
@@ -4464,10 +4470,10 @@ class GitDiffExplManager(GitExplManager):
     def _useExistingWindow(self, title, source, line_num, jump_cmd):
         # source is ('uuu', 'xxx', '?', 'aaa.c', '')
         if len(source) > 0 and source[1] == "xxx":
-            return super(GitExplManager, self)._useExistingWindow(title,
-                                                                  source[3],
-                                                                  line_num,
-                                                                  jump_cmd)
+            return self._preview_panel.createView(GitCatFileCommand({},
+                                                                    source[1:4],
+                                                                    "000000000"))
+
         self.setOptionsForCursor()
 
         content = self._preview_panel.getContent(source)
@@ -4475,6 +4481,8 @@ class GitDiffExplManager(GitExplManager):
             self._preview_panel.createView(self.createGitCommand(self._arguments, source))
         else:
             self._preview_panel.setContent(content)
+            if self._preview_panel.getFileType() != "diff":
+                self._preview_panel.setFileType("diff")
 
     def vsplitDiff(self):
         if "--cached" not in self._arguments:
