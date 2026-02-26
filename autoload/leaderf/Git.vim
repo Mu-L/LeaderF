@@ -941,9 +941,9 @@ function! leaderf#Git#OpenNavigationPanel() abort
     exec g:Lf_py printf("ctypes.cast(%d, ctypes.py_object).value.openNavigationPanel()", b:lf_explorer_page_id)
 endfunction
 
-function! leaderf#Git#StageUnstageHunk(diff_view_id) abort
+function! leaderf#Git#StageUnstageHunk(diff_view_id, all) abort
     exec g:Lf_py "import ctypes"
-    exec g:Lf_py printf("ctypes.cast(%d, ctypes.py_object).value.stageUnstageHunk()", a:diff_view_id)
+    exec g:Lf_py printf("ctypes.cast(%d, ctypes.py_object).value.stageUnstageHunk(%s)", a:diff_view_id, a:all == 0 ? "False" : "True")
 endfunction
 
 function! leaderf#Git#DiscardHunk(diff_view_id, prompt) abort

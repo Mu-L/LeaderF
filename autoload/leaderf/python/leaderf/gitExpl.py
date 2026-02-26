@@ -2906,8 +2906,10 @@ class UnifiedDiffViewPanel(Panel):
                 lfCmd("nnoremap <buffer> <silent> {} :<C-U>LeaderfGitNavigationOpen<CR>"
                       .format(key_map["open_navigation"]))
                 if explorer_page is not None and isinstance(explorer_page._owner, GitStatusExplManager):
-                    lfCmd("nnoremap <buffer> <silent> {} :<C-U>call leaderf#Git#StageUnstageHunk({})<CR>"
+                    lfCmd("nnoremap <buffer> <silent> {} :<C-U>call leaderf#Git#StageUnstageHunk({}, 0)<CR>"
                           .format(key_map["stage_unstage_hunk"], id(self)))
+                    lfCmd("nnoremap <buffer> <silent> {} :<C-U>call leaderf#Git#StageUnstageHunk({}, 1)<CR>"
+                          .format(key_map["stage_unstage_all_hunk"], id(self)))
                     lfCmd("nnoremap <buffer> <silent> {} :<C-U>call leaderf#Git#DiscardHunk({}, 1)<CR>"
                           .format(key_map["discard_hunk"], id(self)))
                     lfCmd("nnoremap <buffer> <silent> {} :<C-U>call leaderf#Git#DiscardHunk({}, 0)<CR>"
@@ -2943,8 +2945,14 @@ class UnifiedDiffViewPanel(Panel):
                     first_change = change_start_lines[index-1]
             lfCmd("call win_execute({}, 'norm! {}G0zbzz')".format(winid, first_change))
 
-    def stageUnstageHunk(self):
-        self.processHunk(how="stage", prompt=False)
+    def stageUnstageHunk(self, is_all=False):
+        if is_all == True:
+            explorer_page_id = int(lfEval("string(b:lf_explorer_page_id)"))
+            navigation_panel = ctypes.cast(explorer_page_id, ctypes.py_object).value._navigation_panel
+            lfCmd("noautocmd LeaderfGitNavigationOpen")
+            navigation_panel.stageUnstage(focus=False)
+        else:
+            self.processHunk(how="stage", prompt=False)
 
     def processHunk(self, how, prompt):
         line_num_content = lfEval("b:lf_git_line_num_content")

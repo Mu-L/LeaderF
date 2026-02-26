@@ -153,6 +153,7 @@ call s:InitVar('g:Lf_GitKeyMap', {
             \ 'edit_file': '<CR>',
             \ 'open_navigation': '=',
             \ 'stage_unstage_hunk': 's',
+            \ 'stage_unstage_all_hunk': 'S',
             \ 'discard_hunk': 'd',
             \ 'discard_hunk_no_prompt': 'D',
             \})
