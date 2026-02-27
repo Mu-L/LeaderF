@@ -2666,6 +2666,11 @@ class UnifiedDiffViewPanel(Panel):
                     lfCmd("noautocmd wincmd W")
                 winid = int(lfEval("win_getid()"))
 
+            if kwargs.get("stage", False) == True and source[1].startswith("0000000"):
+                if buf_name in self._hidden_views:
+                    self._hidden_views[buf_name].cleanup()
+                    del self._hidden_views[buf_name]
+
             if buf_name not in self._hidden_views:
                 fold_ranges = []
                 minus_plus_lines = []
@@ -3708,9 +3713,9 @@ class NavigationPanel(Panel):
 
         ParallelExecutor.run(cmd, directory=self._project_root)
 
-        self.updateTreeview(title, target_path, focus, sync=True)
+        self.updateTreeview(title, target_path, focus, sync=True, stage=True)
 
-    def updateTreeview(self, title=None, target_path=None, focus=True, sync=False):
+    def updateTreeview(self, title=None, target_path=None, focus=True, sync=False, stage=False):
         if target_path is None:
             title = None
 
@@ -3734,6 +3739,7 @@ class NavigationPanel(Panel):
             elif kwargs["title"] == title:
                 kwargs["source_to_open"] = source
                 kwargs["preview"] = focus
+                kwargs["stage"] = stage
                 self.openDiffView(False, **kwargs)
                 return True
             else:
