@@ -2565,8 +2565,11 @@ class UnifiedDiffViewPanel(Panel):
                 lfCmd("""call win_execute({}, "let matchid = matchaddpos('{}', [{}], -100)")"""
                       .format(winid, hl_group, str([plus_beg, col, length])))
 
-    def highlightDiff(self, winid, content, minus_plus_lines):
-        for minus_beg, minus_end, plus_beg, plus_end in minus_plus_lines:
+    def highlightDiff(self, winid, content, change_block_ranges):
+        for minus_beg, minus_end, plus_beg, plus_end in change_block_ranges:
+            if minus_beg == 0 or plus_beg == 0:
+                continue
+
             if minus_beg == minus_end and plus_beg == plus_end:
                 self.highlightOneline(winid, content, minus_beg, plus_beg)
                 continue
@@ -2673,7 +2676,7 @@ class UnifiedDiffViewPanel(Panel):
 
             if buf_name not in self._hidden_views:
                 fold_ranges = []
-                minus_plus_lines = []
+                change_block_ranges = []
                 line_num_dict = {}
                 change_start_lines = []
                 delimiter = lfEval("get(g:, 'Lf_GitDelimiter', '│')")
@@ -2768,9 +2771,11 @@ class UnifiedDiffViewPanel(Panel):
                             # for highlight
                             if plus_beg != 0:
                                 plus_end = i - 1
-                                minus_plus_lines.append((minus_beg, minus_end, plus_beg, plus_end))
+                                change_block_ranges.append((minus_beg, minus_end, plus_beg, plus_end))
                                 minus_beg = 0
+                                minus_end = 0
                                 plus_beg = 0
+                                plus_end = 0
 
                             if minus_beg == 0:
                                 minus_beg = i
@@ -2794,8 +2799,9 @@ class UnifiedDiffViewPanel(Panel):
                                 beg = 0
 
                             # for highlight
-                            if minus_beg != 0 and plus_beg == 0:
-                                minus_end = i - 1
+                            if plus_beg == 0:
+                                if minus_beg != 0:
+                                    minus_end = i - 1
                                 plus_beg = i
 
                             if change_start == 0:
@@ -2817,10 +2823,16 @@ class UnifiedDiffViewPanel(Panel):
                             # for highlight
                             if plus_beg != 0:
                                 plus_end = i - 1
-                                minus_plus_lines.append((minus_beg, minus_end, plus_beg, plus_end))
+                                change_block_ranges.append((minus_beg, minus_end, plus_beg, plus_end))
+                                minus_beg = 0
+                                minus_end = 0
                                 plus_beg = 0
-
-                            minus_beg = 0
+                                plus_end = 0
+                            elif minus_beg != 0:
+                                minus_end = i - 1
+                                change_block_ranges.append((minus_beg, minus_end, plus_beg, plus_end))
+                                minus_beg = 0
+                                minus_end = 0
 
                             if change_start != 0:
                                 change_start_lines.append(change_start)
@@ -2843,7 +2855,10 @@ class UnifiedDiffViewPanel(Panel):
                         # for highlight
                         if plus_beg != 0:
                             plus_end = end
-                            minus_plus_lines.append((minus_beg, minus_end, plus_beg, plus_end))
+                            change_block_ranges.append((minus_beg, minus_end, plus_beg, plus_end))
+                        elif minus_beg != 0:
+                            minus_end = end
+                            change_block_ranges.append((minus_beg, minus_end, plus_beg, plus_end))
 
                         if change_start != 0:
                             change_start_lines.append(change_start)
@@ -2866,6 +2881,7 @@ class UnifiedDiffViewPanel(Panel):
                     abs_orig_file_path = os.path.join(self._project_root, lfGetOrigFilePath(source))
                 lfCmd("let b:lf_git_orig_file_name = '%s'" % escQuote(abs_orig_file_path))
                 lfCmd("let b:lf_git_line_num_content = {}".format(str(line_num_content)))
+                lfCmd("let b:lf_change_block_ranges = {}".format(str(change_block_ranges)))
                 lfCmd("augroup Lf_Git_Log | augroup END")
                 lfCmd("autocmd! Lf_Git_Log BufWinEnter <buffer> call leaderf#Git#SetMatches()")
                 ranges = (range(sublist[0], sublist[1] + 1) for sublist in fold_ranges)
@@ -2889,7 +2905,7 @@ class UnifiedDiffViewPanel(Panel):
                 self.signPlace(added_line_nums, deleted_line_nums, buffer_num)
 
                 self.setLineNumberWin(line_num_content, buffer_num)
-                self.highlightDiff(winid, content, minus_plus_lines)
+                self.highlightDiff(winid, content, change_block_ranges)
                 lfCmd("let b:Leaderf_matches = getmatches()")
                 lfCmd("let b:lf_change_start_lines = {}".format(str(change_start_lines)))
                 lfCmd("let b:lf_explorer_page_id = {}".format(explorer_page_id))
